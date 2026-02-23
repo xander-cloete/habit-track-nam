@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-
-export const maxDuration = 60; // seconds — needed for AI response time on Vercel
 import { getAnthropicClient, AI_MODEL } from '@/lib/ai/client';
 import {
   buildOnboardingPrompt,
   COACHING_SYSTEM_PROMPT,
   type GeneratedPlan,
 } from '@/lib/ai/prompts/onboarding';
+
+export const maxDuration = 60; // seconds — needed for AI response time on Vercel
 import { db } from '@/lib/db';
 import {
   lifeAreas,
@@ -244,7 +244,8 @@ export async function POST(req: NextRequest) {
       scheduleBlockCount: plan.scheduleBlocks.length,
     });
   } catch (error) {
-    console.error('[generate-plan] Error:', error);
+    console.error('[generate-plan] Error:', error instanceof Error ? error.message : String(error));
+    if (error instanceof Error) console.error('[generate-plan] Stack:', error.stack);
     return serverError();
   }
 }

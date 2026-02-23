@@ -17,6 +17,7 @@ const navItems = [
   { href: '/journal',   icon: '📓', label: 'Journal' },
   { href: '/coach',     icon: '💬', label: 'Coach'   },
   { href: '/reports',   icon: '📊', label: 'Reports' },
+  { href: '/profile',   icon: '👤', label: 'Profile' },
 ];
 
 export default function Sidebar({ displayName, email }: SidebarProps) {
