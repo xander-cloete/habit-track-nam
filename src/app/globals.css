@@ -1,26 +1,339 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ─────────────────────────────────────────────────────────────────────────────
+   PAPER & PEN THEME — Tailwind v4 CSS-first configuration
+   Inspired by bullet journal aesthetics: cream paper, ink lines, hand-drawn graphs
+───────────────────────────────────────────────────────────────────────────── */
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* ── Color Palette ────────────────────────────────────────────────────── */
+  --color-paper:       #FDF8F0;   /* Warm cream — main background */
+  --color-paper-dark:  #F5EDD8;   /* Slightly darker cream — card backgrounds */
+  --color-paper-ruled: #EDE8DD;   /* Ruled line color */
+
+  --color-ink:         #1A1A1A;   /* Near-black ink — primary text */
+  --color-ink-light:   #4A4A4A;   /* Medium ink — secondary text */
+  --color-ink-faint:   #9A9A8A;   /* Faint ink — placeholder / disabled */
+  --color-pencil:      #8B8B7A;   /* Pencil gray — borders, dividers */
+
+  --color-accent:          #C4713A;  /* Burnt orange — primary accent */
+  --color-accent-hover:    #A85E2A;  /* Darker burnt orange — hover state */
+  --color-accent-light:    #F0D9C8;  /* Light orange — accent backgrounds */
+
+  --color-accent-blue:     #4A6A8A;  /* Ink blue — secondary accent (graphs) */
+  --color-accent-blue-light: #D0DCE8; /* Light blue — backgrounds */
+
+  --color-accent-green:    #5A7A4A;  /* Forest green — success/positive */
+  --color-accent-green-light: #D4E2CC; /* Light green — success backgrounds */
+
+  --color-accent-red:      #C0392B;  /* Pen red — X marks, alerts */
+  --color-accent-red-light: #F5D0CC; /* Light red — alert backgrounds */
+
+  --color-graph-line:  rgba(74, 106, 138, 0.8);  /* Graph line color */
+  --color-graph-dot:   #4A6A8A;                   /* Graph dot color */
+  --color-x-mark:      #1A1A1A;                   /* Habit completion X color */
+
+  /* ── Typography ───────────────────────────────────────────────────────── */
+  --font-hand:   var(--font-caveat), 'Caveat', cursive;      /* Headers, numbers, hand-written feel */
+  --font-body:   var(--font-kalam), 'Kalam', cursive;        /* Body text, labels */
+  --font-sans:   var(--font-geist-sans), system-ui, sans-serif; /* UI elements, inputs */
+  --font-mono:   var(--font-geist-mono), monospace;
+
+  /* ── Shadows ──────────────────────────────────────────────────────────── */
+  --shadow-paper: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-card:  0 4px 16px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.06);
+  --shadow-lifted: 0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
+
+  /* ── Border Radius ────────────────────────────────────────────────────── */
+  --radius-paper: 4px;    /* Slightly less than default — more like cut paper */
+  --radius-card:  6px;
+  --radius-pill:  999px;
+
+  /* ── Spacing ──────────────────────────────────────────────────────────── */
+  --grid-size: 24px;      /* Graph paper grid cell size */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ─────────────────────────────────────────────────────────────────────────────
+   BASE STYLES
+───────────────────────────────────────────────────────────────────────────── */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  min-height: 100vh;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GRAPH PAPER BACKGROUND
+   Used as the main app container background
+───────────────────────────────────────────────────────────────────────────── */
+
+.graph-paper-bg {
+  background-color: var(--color-paper);
+  background-image:
+    linear-gradient(rgba(139, 139, 122, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139, 139, 122, 0.12) 1px, transparent 1px);
+  background-size: var(--grid-size) var(--grid-size);
+}
+
+.graph-paper-bg-subtle {
+  background-color: var(--color-paper);
+  background-image:
+    linear-gradient(rgba(139, 139, 122, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139, 139, 122, 0.07) 1px, transparent 1px);
+  background-size: var(--grid-size) var(--grid-size);
+}
+
+/* Ruled lines only (horizontal, like lined paper) */
+.ruled-bg {
+  background-color: var(--color-paper);
+  background-image:
+    linear-gradient(rgba(139, 139, 122, 0.15) 1px, transparent 1px);
+  background-size: 100% var(--grid-size);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   X-MARK HABIT COMPLETION BUTTON
+   Animated pencil X that draws in when a habit is marked complete
+───────────────────────────────────────────────────────────────────────────── */
+
+.x-mark-btn {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--color-pencil);
+  border-radius: var(--radius-paper);
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease;
+  flex-shrink: 0;
+}
+
+.x-mark-btn::before,
+.x-mark-btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 60%;
+  height: 2.5px;
+  background: var(--color-x-mark);
+  border-radius: 1px;
+  transform-origin: center;
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 200ms ease,
+              width 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+  width: 0;
+}
+
+.x-mark-btn::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.x-mark-btn::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.x-mark-btn.checked {
+  border-color: var(--color-ink);
+  background-color: transparent;
+}
+
+.x-mark-btn.checked::before,
+.x-mark-btn.checked::after {
+  opacity: 1;
+  width: 60%;
+}
+
+.x-mark-btn:hover {
+  border-color: var(--color-ink);
+}
+
+.x-mark-btn:hover::before,
+.x-mark-btn:hover::after {
+  opacity: 0.3;
+  width: 60%;
+}
+
+.x-mark-btn.checked:hover::before,
+.x-mark-btn.checked:hover::after {
+  opacity: 0.6;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PAPER CARD
+   Card with a subtle paper texture and shadow
+───────────────────────────────────────────────────────────────────────────── */
+
+.paper-card {
+  background-color: var(--color-paper-dark);
+  border: 1px solid var(--color-paper-ruled);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-paper);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   AI TYPING INDICATOR
+   Animated pen-writing effect for streaming AI responses
+───────────────────────────────────────────────────────────────────────────── */
+
+@keyframes pen-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+.ai-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  background-color: var(--color-accent);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: pen-blink 1s step-start infinite;
+}
+
+@keyframes dot-pulse {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40%            { transform: scale(1.0); opacity: 1.0; }
+}
+
+.ai-thinking-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--color-accent);
+  animation: dot-pulse 1.4s ease-in-out infinite;
+}
+
+.ai-thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+.ai-thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SKETCHY / HAND-DRAWN BORDERS
+   Used for special UI elements that should look hand-drawn
+───────────────────────────────────────────────────────────────────────────── */
+
+.border-sketchy {
+  border: 2px solid var(--color-pencil);
+  border-radius: 2px 8px 3px 6px / 6px 2px 8px 3px; /* Asymmetric = hand-drawn feel */
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SCROLLBAR STYLING
+   Thin, paper-toned scrollbar
+───────────────────────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-paper-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-pencil);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-light);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   FOCUS STYLES
+   Accent-colored focus ring
+───────────────────────────────────────────────────────────────────────────── */
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TYPOGRAPHY UTILITIES
+───────────────────────────────────────────────────────────────────────────── */
+
+.font-hand { font-family: var(--font-hand); }
+.font-body { font-family: var(--font-body); }
+
+/* Heading styles with handwritten feel */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-hand);
+  color: var(--color-ink);
+  line-height: 1.2;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TRANSITION DEFAULTS
+───────────────────────────────────────────────────────────────────────────── */
+
+button, a, input, textarea, select {
+  transition-property: color, background-color, border-color, opacity, transform, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   STREAK BADGE
+───────────────────────────────────────────────────────────────────────────── */
+
+.streak-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background-color: var(--color-accent-light);
+  color: var(--color-accent);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-hand);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PROGRESS BAR (hand-drawn style)
+───────────────────────────────────────────────────────────────────────────── */
+
+.progress-track {
+  width: 100%;
+  height: 8px;
+  background-color: var(--color-paper-ruled);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: var(--color-accent);
+  border-radius: 4px;
+  transition: width 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+/* Slightly wobbly top edge for hand-drawn feel */
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  background-color: var(--color-accent-hover);
+  border-radius: 0 4px 4px 0;
 }
