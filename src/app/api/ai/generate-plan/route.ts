@@ -244,8 +244,10 @@ export async function POST(req: NextRequest) {
       scheduleBlockCount: plan.scheduleBlocks.length,
     });
   } catch (error) {
-    console.error('[generate-plan] Error:', error instanceof Error ? error.message : String(error));
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[generate-plan] Error:', msg);
     if (error instanceof Error) console.error('[generate-plan] Stack:', error.stack);
-    return serverError();
+    // Temporarily expose error message to diagnose Vercel issue — will remove once fixed
+    return NextResponse.json({ error: 'Internal server error', detail: msg }, { status: 500 });
   }
 }
