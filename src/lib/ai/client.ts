@@ -28,4 +28,4 @@ export function getAnthropicClient(): Anthropic {
 export const AI_MODEL = 'claude-sonnet-4-6' as const;
 
 // Fast model — used for plan generation & reports to stay within Vercel's 10s limit
-export const AI_MODEL_FAST = 'claude-3-5-haiku-20241022' as const;
+export const AI_MODEL_FAST = 'claude-haiku-4-5' as const;
