@@ -44,7 +44,7 @@ export const useOnboardingStore = create<OnboardingStore>((set) => ({
   },
   setStep: (step) => set({ currentStep: Math.min(Math.max(step, 1), TOTAL_STEPS) }),
   nextStep: () =>
-    set((s) => ({ currentStep: Math.min(s.currentStep + 1, TOTAL_STEPS) })),
+    set((s) => ({ currentStep: s.currentStep + 1 })),
   prevStep: () => set((s) => ({ currentStep: Math.max(s.currentStep - 1, 1) })),
   updateData: (patch) => set((s) => ({ data: { ...s.data, ...patch } })),
   reset: () => set({ currentStep: 1, data: {} }),
