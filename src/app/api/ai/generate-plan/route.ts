@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { getAnthropicClient, AI_MODEL } from '@/lib/ai/client';
+import { getAnthropicClient, AI_MODEL_FAST } from '@/lib/ai/client';
 import {
   buildOnboardingPrompt,
   COACHING_SYSTEM_PROMPT,
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
     // ── Call Claude ────────────────────────────────────────────────────────
     const message = await getAnthropicClient().messages.create({
-      model: AI_MODEL,
+      model: AI_MODEL_FAST,
       max_tokens: 4096,
       system: COACHING_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: buildOnboardingPrompt(body) }],
@@ -244,10 +244,7 @@ export async function POST(req: NextRequest) {
       scheduleBlockCount: plan.scheduleBlocks.length,
     });
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error('[generate-plan] Error:', msg);
-    if (error instanceof Error) console.error('[generate-plan] Stack:', error.stack);
-    // Temporarily expose error message to diagnose Vercel issue — will remove once fixed
-    return NextResponse.json({ error: 'Internal server error', detail: msg }, { status: 500 });
+    console.error('[generate-plan] Error:', error instanceof Error ? error.message : String(error));
+    return serverError();
   }
 }

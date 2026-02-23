@@ -15,7 +15,7 @@ import { getHabitsByUser } from '@/lib/db/queries/habits';
 import { getGoalsByUser } from '@/lib/db/queries/goals';
 import { getUserProfile } from '@/lib/db/queries/users';
 import { createReport, updateReport } from '@/lib/db/queries/reports';
-import { getAnthropicClient, AI_MODEL } from '@/lib/ai/client';
+import { getAnthropicClient, AI_MODEL_FAST } from '@/lib/ai/client';
 import { db } from '@/lib/db';
 import { habitLogs, reports } from '@/lib/db/schema';
 import { eq, and, gte, lte, inArray } from 'drizzle-orm';
@@ -197,7 +197,7 @@ Tone: grounded bullet-journal coach. Be specific to their habits. No generic pla
 
     try {
       const result = await getAnthropicClient().messages.create({
-        model: AI_MODEL,
+        model: AI_MODEL_FAST,
         max_tokens: 700,
         messages: [{ role: 'user', content: aiPrompt }],
       });
