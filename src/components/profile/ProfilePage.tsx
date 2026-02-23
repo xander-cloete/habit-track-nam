@@ -23,6 +23,12 @@ export default function ProfilePage() {
   const [resetting, setResetting]     = useState(false);
   const [resetError, setResetError]   = useState('');
 
+  // Delete account flow state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteText, setDeleteText]               = useState('');
+  const [deleting, setDeleting]                   = useState(false);
+  const [deleteError, setDeleteError]             = useState('');
+
   useEffect(() => {
     // Load profile
     fetch('/api/users/profile')
@@ -48,6 +54,21 @@ export default function ProfilePage() {
     } catch {
       setResetError('Something went wrong. Please try again.');
       setResetting(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    if (deleteText !== 'DELETE MY ACCOUNT') return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      const res = await fetch('/api/users/delete-account', { method: 'POST' });
+      if (!res.ok) throw new Error('Delete failed');
+      // Redirect to register — account is gone
+      router.replace('/register');
+    } catch {
+      setDeleteError('Something went wrong. Please try again.');
+      setDeleting(false);
     }
   }
 
@@ -216,6 +237,89 @@ export default function ProfilePage() {
                   }}
                 >
                   {resetting ? 'Resetting…' : 'Confirm Reset'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Delete Account ─────────────────────────────────────────────────── */}
+        <div
+          className="rounded-2xl p-6"
+          style={{
+            border: '1px solid rgba(120,0,0,0.3)',
+            backgroundColor: 'rgba(120,0,0,0.04)',
+          }}
+        >
+          <h2 className="font-hand text-xl mb-1" style={{ color: '#7B0000' }}>
+            Delete Account
+          </h2>
+          <p className="font-body text-sm mb-4" style={{ color: 'var(--color-ink-faint)' }}>
+            Permanently deletes your account and <strong>all</strong> associated data.
+            Your email can be re-used to register a new account afterwards.
+            <br />
+            <strong style={{ color: '#7B0000' }}>This cannot be undone.</strong>
+          </p>
+
+          {!showDeleteConfirm ? (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="font-hand text-lg px-6 py-2.5 rounded-xl transition-opacity hover:opacity-80"
+              style={{
+                backgroundColor: 'rgba(120,0,0,0.1)',
+                color: '#7B0000',
+                border: '1px solid rgba(120,0,0,0.3)',
+              }}
+            >
+              Delete My Account
+            </button>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <p className="font-body text-sm font-semibold" style={{ color: '#7B0000' }}>
+                Type <strong>DELETE MY ACCOUNT</strong> to confirm:
+              </p>
+              <input
+                type="text"
+                value={deleteText}
+                onChange={(e) => setDeleteText(e.target.value)}
+                placeholder="DELETE MY ACCOUNT"
+                className="rounded-xl px-4 py-3 font-body text-base outline-none border"
+                style={{
+                  backgroundColor: 'var(--color-paper)',
+                  color: 'var(--color-ink)',
+                  borderColor: deleteText === 'DELETE MY ACCOUNT' ? '#7B0000' : 'var(--color-paper-ruled)',
+                }}
+                autoFocus
+              />
+
+              {deleteError && (
+                <p className="font-body text-sm" style={{ color: '#7B0000' }}>{deleteError}</p>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowDeleteConfirm(false); setDeleteText(''); setDeleteError(''); }}
+                  className="flex-1 font-hand text-lg py-2.5 rounded-xl transition-opacity hover:opacity-70"
+                  style={{
+                    backgroundColor: 'var(--color-paper-dark)',
+                    color: 'var(--color-ink-faint)',
+                    border: '1px solid var(--color-paper-ruled)',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void handleDeleteAccount()}
+                  disabled={deleteText !== 'DELETE MY ACCOUNT' || deleting}
+                  className="flex-[2] font-hand text-lg py-2.5 rounded-xl transition-opacity"
+                  style={{
+                    backgroundColor: deleteText === 'DELETE MY ACCOUNT' ? '#7B0000' : 'rgba(120,0,0,0.2)',
+                    color: '#ffffff',
+                    opacity: deleteText === 'DELETE MY ACCOUNT' && !deleting ? 1 : 0.5,
+                    cursor: deleteText === 'DELETE MY ACCOUNT' && !deleting ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  {deleting ? 'Deleting…' : 'Confirm Delete'}
                 </button>
               </div>
             </div>

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono, Caveat, Kalam } from 'next/font/google';
+import { Geist, Geist_Mono, Caveat, Kalam, Indie_Flower, Patrick_Hand, Satisfy } from 'next/font/google';
 import Providers from './providers';
 import './globals.css';
 
@@ -32,6 +32,30 @@ const kalam = Kalam({
   display: 'swap',
 });
 
+// ── Indie Flower (bubbly, casual handwriting) ─────────────────────────────────
+const indieFlower = Indie_Flower({
+  variable: '--font-indie-flower',
+  subsets: ['latin'],
+  weight: '400',
+  display: 'swap',
+});
+
+// ── Patrick Hand (clean, print-like handwriting) ──────────────────────────────
+const patrickHand = Patrick_Hand({
+  variable: '--font-patrick-hand',
+  subsets: ['latin'],
+  weight: '400',
+  display: 'swap',
+});
+
+// ── Satisfy (elegant cursive) ─────────────────────────────────────────────────
+const satisfy = Satisfy({
+  variable: '--font-satisfy',
+  subsets: ['latin'],
+  weight: '400',
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
   title: {
     default: 'Habit Tracker — Your Daily Journal Coach',
@@ -61,6 +85,9 @@ export default function RootLayout({
           geistMono.variable,
           caveat.variable,
           kalam.variable,
+          indieFlower.variable,
+          patrickHand.variable,
+          satisfy.variable,
           'antialiased',
           'h-full',
         ].join(' ')}

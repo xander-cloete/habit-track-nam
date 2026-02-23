@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useSchedule, useDeleteBlock } from '@/hooks/useSchedule';
 import ScheduleBlock, { type ScheduleBlockData } from './ScheduleBlock';
 import BlockForm from './BlockForm';
+import WorkScheduleForm from './WorkScheduleForm';
 
 // ── Date helpers ───────────────────────────────────────────────────────────────
 function toYMD(d: Date): string {
@@ -47,8 +48,9 @@ function formatHeaderRange(monday: string): string {
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function WeekPlanner() {
   const today = toYMD(new Date());
-  const [anchorMonday, setAnchorMonday] = useState(() => weekStart(today));
+  const [anchorMonday, setAnchorMonday]   = useState(() => weekStart(today));
   const [addingForDate, setAddingForDate] = useState<string | null>(null);
+  const [showWorkForm, setShowWorkForm]   = useState(false);
 
   const sunday = addDays(anchorMonday, 6);
   const { data: blocks = [], isLoading } = useSchedule(anchorMonday, sunday);
@@ -80,9 +82,14 @@ export default function WeekPlanner() {
         />
       )}
 
+      {/* Work/School schedule setup modal */}
+      {showWorkForm && (
+        <WorkScheduleForm onClose={() => setShowWorkForm(false)} />
+      )}
+
       <div className="p-5 lg:p-10 max-w-4xl mx-auto">
         {/* Page header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
           <div>
             <h1 className="font-hand text-3xl" style={{ color: 'var(--color-ink)' }}>
               Week Planner
@@ -91,8 +98,24 @@ export default function WeekPlanner() {
               {formatHeaderRange(anchorMonday)}
             </p>
           </div>
-          {/* Nav controls */}
-          <div className="flex items-center gap-2">
+          {/* Controls: work schedule + nav */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Work/School schedule button */}
+            <button
+              onClick={() => setShowWorkForm(true)}
+              className="font-body text-xs px-3 py-1.5 rounded-lg"
+              style={{
+                backgroundColor: 'var(--color-accent-light)',
+                border: '1px solid var(--color-accent)',
+                color: 'var(--color-accent)',
+              }}
+            >
+              ⚙ Work Schedule
+            </button>
+
+            {/* Divider */}
+            <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--color-paper-ruled)' }} />
+
             <button
               onClick={prevWeek}
               className="font-body text-sm px-3 py-1.5 rounded-lg"

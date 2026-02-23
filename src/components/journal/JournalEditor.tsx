@@ -7,10 +7,53 @@ import type { JournalEntry } from '@/lib/db/schema';
 // ── Constants ─────────────────────────────────────────────────────────────────
 const LINE_HEIGHT = 34; // px — must match CSS background-size
 
-// 110gsm paper: smooth warm-white with light-blue notebook ruling
-const PAPER_BG     = '#F9F8F5';                  // warm white, premium paper feel
-const RULE_COLOR   = 'rgba(150,175,215,0.38)';   // light blue ruling like real notebooks
-const MARGIN_COLOR = 'rgba(200,60,50,0.22)';     // pale red margin line
+// Warm cream paper matching the app theme (#FDF8F0)
+const PAPER_BG     = 'var(--color-paper)';
+const RULE_COLOR   = 'rgba(150,175,215,0.38)';   // light blue ruling
+const MARGIN_COLOR = 'rgba(200,60,50,0.22)';      // pale red margin line
+
+// ── Page styles ────────────────────────────────────────────────────────────────
+type PageStyle = 'lined' | 'grid' | 'plain';
+const DEFAULT_PAGE_STYLE: PageStyle = 'lined';
+
+const PAGE_STYLE_OPTIONS: { id: PageStyle; icon: string; label: string }[] = [
+  { id: 'lined', icon: '≡', label: 'Lined' },
+  { id: 'grid',  icon: '⊞', label: 'Grid'  },
+  { id: 'plain', icon: '□', label: 'Plain' },
+];
+
+function getPageBackground(style: PageStyle): string {
+  switch (style) {
+    case 'lined':
+      return `linear-gradient(transparent ${LINE_HEIGHT - 1}px, ${RULE_COLOR} ${LINE_HEIGHT - 1}px)`;
+    case 'grid':
+      return [
+        `linear-gradient(${RULE_COLOR} 1px, transparent 1px)`,
+        `linear-gradient(90deg, ${RULE_COLOR} 1px, transparent 1px)`,
+      ].join(', ');
+    case 'plain':
+      return 'none';
+  }
+}
+
+function getPageBackgroundSize(style: PageStyle): string {
+  switch (style) {
+    case 'lined': return `100% ${LINE_HEIGHT}px`;
+    case 'grid':  return `${LINE_HEIGHT}px ${LINE_HEIGHT}px`;
+    case 'plain': return 'auto';
+  }
+}
+
+// ── Fonts (handwriting options) ───────────────────────────────────────────────
+const FONTS = [
+  { id: 'caveat',       label: 'Caveat',       cssVar: 'var(--font-caveat)'       },
+  { id: 'kalam',        label: 'Kalam',        cssVar: 'var(--font-kalam)'        },
+  { id: 'indie-flower', label: 'Indie Flower', cssVar: 'var(--font-indie-flower)' },
+  { id: 'patrick-hand', label: 'Patrick Hand', cssVar: 'var(--font-patrick-hand)' },
+  { id: 'satisfy',      label: 'Satisfy',      cssVar: 'var(--font-satisfy)'      },
+] as const;
+type FontId = typeof FONTS[number]['id'];
+const DEFAULT_FONT: FontId = 'caveat';
 
 // ── Pen colours (Uniball Micro palette) ───────────────────────────────────────
 const PEN_COLORS = [
@@ -23,12 +66,6 @@ const PEN_COLORS = [
 
 type PenColorId = typeof PEN_COLORS[number]['id'];
 const DEFAULT_PEN: PenColorId = 'black';
-
-function loadPenColor(): PenColorId {
-  if (typeof window === 'undefined') return DEFAULT_PEN;
-  const saved = localStorage.getItem('journal_pen_color');
-  return (PEN_COLORS.find((c) => c.id === saved)?.id ?? DEFAULT_PEN);
-}
 
 // ── Moods ─────────────────────────────────────────────────────────────────────
 const MOODS: { value: number; emoji: string; label: string }[] = [
@@ -56,6 +93,12 @@ function formatDateHeader(dateStr: string): string {
   });
 }
 
+function formatDateStamp(dateStr: string): string {
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'short', year: 'numeric',
+  });
+}
+
 function wordCount(text: string): number {
   return text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
 }
@@ -74,27 +117,48 @@ const WRITING_PROMPTS = [
 export default function JournalEditor() {
   const today = toYMD(new Date());
 
-  const [date, setDate]               = useState(today);
-  const [content, setContent]         = useState('');
-  const [mood, setMood]               = useState<number | null>(null);
-  const [saveStatus, setSaveStatus]   = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [isLoading, setIsLoading]     = useState(true);
+  const [date, setDate]                 = useState(today);
+  const [content, setContent]           = useState('');
+  const [mood, setMood]                 = useState<number | null>(null);
+  const [saveStatus, setSaveStatus]     = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [isLoading, setIsLoading]       = useState(true);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [promptIndex]                 = useState(() => Math.floor(Math.random() * WRITING_PROMPTS.length));
-  const [penColor, setPenColor]       = useState<PenColorId>(DEFAULT_PEN);
+  const [promptIndex]                   = useState(() => Math.floor(Math.random() * WRITING_PROMPTS.length));
+
+  // Preferences (loaded from localStorage on client mount)
+  const [penColor,  setPenColor]  = useState<PenColorId>(DEFAULT_PEN);
+  const [pageStyle, setPageStyle] = useState<PageStyle>(DEFAULT_PAGE_STYLE);
+  const [fontId,    setFontId]    = useState<FontId>(DEFAULT_FONT);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const saveTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSaved   = useRef<{ content: string; mood: number | null }>({ content: '', mood: null });
 
-  // Load saved pen colour from localStorage (client-only)
+  // Load preferences from localStorage (client-only, avoids hydration mismatch)
   useEffect(() => {
-    setPenColor(loadPenColor());
+    const savedPen   = localStorage.getItem('journal_pen_color') as PenColorId | null;
+    const savedPage  = localStorage.getItem('journal_page_style') as PageStyle | null;
+    const savedFont  = localStorage.getItem('journal_font') as FontId | null;
+    if (savedPen  && PEN_COLORS.find((c) => c.id === savedPen))              setPenColor(savedPen);
+    if (savedPage && PAGE_STYLE_OPTIONS.find((s) => s.id === savedPage))     setPageStyle(savedPage);
+    if (savedFont && FONTS.find((f) => f.id === savedFont))                  setFontId(savedFont);
   }, []);
 
   function selectPenColor(id: PenColorId) {
     setPenColor(id);
     localStorage.setItem('journal_pen_color', id);
+    textareaRef.current?.focus();
+  }
+
+  function selectPageStyle(id: PageStyle) {
+    setPageStyle(id);
+    localStorage.setItem('journal_page_style', id);
+    textareaRef.current?.focus();
+  }
+
+  function selectFont(id: FontId) {
+    setFontId(id);
+    localStorage.setItem('journal_font', id);
     textareaRef.current?.focus();
   }
 
@@ -166,8 +230,8 @@ export default function JournalEditor() {
   const words    = wordCount(content);
   const prompt   = WRITING_PROMPTS[promptIndex] ?? WRITING_PROMPTS[0]!;
 
-  // Current pen hex
-  const inkColor = PEN_COLORS.find((c) => c.id === penColor)?.hex ?? '#1A1A1A';
+  const inkColor   = PEN_COLORS.find((c) => c.id === penColor)?.hex ?? '#1A1A1A';
+  const fontCssVar = FONTS.find((f) => f.id === fontId)?.cssVar ?? 'var(--font-caveat)';
 
   return (
     <div
@@ -277,6 +341,23 @@ export default function JournalEditor() {
             {/* Writing surface */}
             {!isLoading && (
               <div className="relative">
+
+                {/* Date stamp: top-right corner of writing area */}
+                <p
+                  className="absolute font-hand select-none pointer-events-none"
+                  style={{
+                    top: '4px',
+                    right: '8px',
+                    color: 'rgba(100,116,139,0.5)',
+                    fontSize: '13px',
+                    lineHeight: `${LINE_HEIGHT}px`,
+                    zIndex: 1,
+                  }}
+                  aria-hidden="true"
+                >
+                  {formatDateStamp(date)}
+                </p>
+
                 {/* Red margin line */}
                 <div
                   className="absolute top-0 bottom-0"
@@ -321,7 +402,7 @@ export default function JournalEditor() {
                   </p>
                 )}
 
-                {/* ── Textarea: Uniball Micro style ── */}
+                {/* ── Textarea ── */}
                 <textarea
                   ref={textareaRef}
                   value={content}
@@ -331,24 +412,18 @@ export default function JournalEditor() {
                   autoFocus={isToday}
                   className="w-full outline-none resize-none"
                   style={{
-                    /* 110gsm ruled paper background */
-                    backgroundImage: `linear-gradient(
-                      transparent ${LINE_HEIGHT - 1}px,
-                      ${RULE_COLOR} ${LINE_HEIGHT - 1}px
-                    )`,
-                    backgroundSize: `100% ${LINE_HEIGHT}px`,
+                    backgroundImage: getPageBackground(pageStyle),
+                    backgroundSize: getPageBackgroundSize(pageStyle),
                     backgroundAttachment: 'local',
                     backgroundColor: 'transparent',
 
-                    /* Uniball Micro: fine, precise, smooth */
-                    fontFamily: 'var(--font-hand)',
+                    fontFamily: fontCssVar,
                     fontSize: '19px',
                     fontWeight: '400',
                     lineHeight: `${LINE_HEIGHT}px`,
                     letterSpacing: '-0.01em',
                     color: inkColor,
 
-                    /* Past margin line */
                     paddingLeft: '52px',
                     paddingRight: '8px',
                     paddingTop: '4px',
@@ -366,7 +441,7 @@ export default function JournalEditor() {
           </div>
         </div>
 
-        {/* ── Bottom bar: pen colours · mood · word count ──────────────────── */}
+        {/* ── Bottom bar ──────────────────────────────────────────────────────── */}
         {!isLoading && (
           <div
             className="flex-shrink-0 flex items-center justify-between px-6 py-3 gap-4 flex-wrap"
@@ -375,35 +450,69 @@ export default function JournalEditor() {
               backgroundColor: PAPER_BG,
             }}
           >
-            {/* Left: pen colour picker */}
-            <div className="flex items-center gap-2">
-              <span className="font-body text-xs mr-1" style={{ color: 'var(--color-ink-faint)' }}>
-                Pen
-              </span>
-              {PEN_COLORS.map(({ id, label, hex }) => (
-                <button
-                  key={id}
-                  onClick={() => selectPenColor(id)}
-                  title={label}
-                  aria-label={label}
-                  aria-pressed={penColor === id}
-                  className="rounded-full transition-transform"
-                  style={{
-                    width: '20px',
-                    height: '20px',
-                    backgroundColor: hex,
-                    border: penColor === id
-                      ? `2px solid ${hex}`
-                      : '2px solid transparent',
-                    outline: penColor === id
-                      ? `2px solid ${hex}`
-                      : '2px solid transparent',
-                    outlineOffset: '2px',
-                    transform: penColor === id ? 'scale(1.2)' : 'scale(1)',
-                    flexShrink: 0,
-                  }}
-                />
-              ))}
+            {/* Left group: pen colour + page style */}
+            <div className="flex items-center gap-4">
+
+              {/* Pen colour picker */}
+              <div className="flex items-center gap-2">
+                <span className="font-body text-xs" style={{ color: 'var(--color-ink-faint)' }}>
+                  Pen
+                </span>
+                {PEN_COLORS.map(({ id, label, hex }) => (
+                  <button
+                    key={id}
+                    onClick={() => selectPenColor(id)}
+                    title={label}
+                    aria-label={label}
+                    aria-pressed={penColor === id}
+                    className="rounded-full transition-transform"
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      backgroundColor: hex,
+                      border: penColor === id ? `2px solid ${hex}` : '2px solid transparent',
+                      outline: penColor === id ? `2px solid ${hex}` : '2px solid transparent',
+                      outlineOffset: '2px',
+                      transform: penColor === id ? 'scale(1.2)' : 'scale(1)',
+                      flexShrink: 0,
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* Divider */}
+              <div style={{ width: '1px', height: '20px', backgroundColor: 'rgba(150,175,215,0.4)' }} />
+
+              {/* Page style selector */}
+              <div className="flex items-center gap-1">
+                <span className="font-body text-xs mr-1" style={{ color: 'var(--color-ink-faint)' }}>
+                  Page
+                </span>
+                {PAGE_STYLE_OPTIONS.map(({ id, icon, label }) => (
+                  <button
+                    key={id}
+                    onClick={() => selectPageStyle(id)}
+                    title={label}
+                    aria-label={label}
+                    aria-pressed={pageStyle === id}
+                    className="font-hand transition-all"
+                    style={{
+                      fontSize: '14px',
+                      width: '26px',
+                      height: '26px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: pageStyle === id ? 'var(--color-accent-light)' : 'transparent',
+                      color: pageStyle === id ? 'var(--color-accent)' : 'var(--color-ink-faint)',
+                      border: pageStyle === id ? '1px solid var(--color-accent)' : '1px solid transparent',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    {icon}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Centre: mood selector */}
@@ -434,10 +543,44 @@ export default function JournalEditor() {
               ))}
             </div>
 
-            {/* Right: word count */}
-            <span className="font-hand text-sm" style={{ color: 'var(--color-ink-faint)' }}>
-              {words} {words === 1 ? 'word' : 'words'}
-            </span>
+            {/* Right group: font picker + word count */}
+            <div className="flex items-center gap-3">
+
+              {/* Font picker — "Aa" in each font's own typeface */}
+              <div className="flex items-center gap-1">
+                <span className="font-body text-xs mr-1" style={{ color: 'var(--color-ink-faint)' }}>
+                  Font
+                </span>
+                {FONTS.map(({ id, label, cssVar }) => (
+                  <button
+                    key={id}
+                    onClick={() => selectFont(id)}
+                    title={label}
+                    aria-label={label}
+                    aria-pressed={fontId === id}
+                    className="transition-all"
+                    style={{
+                      fontFamily: cssVar,
+                      fontSize: '14px',
+                      lineHeight: 1,
+                      padding: '3px 6px',
+                      borderRadius: '4px',
+                      backgroundColor: fontId === id ? 'var(--color-accent-light)' : 'transparent',
+                      color: fontId === id ? 'var(--color-accent)' : 'var(--color-ink-faint)',
+                      border: fontId === id ? '1px solid var(--color-accent)' : '1px solid transparent',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Aa
+                  </button>
+                ))}
+              </div>
+
+              {/* Word count */}
+              <span className="font-hand text-sm" style={{ color: 'var(--color-ink-faint)' }}>
+                {words} {words === 1 ? 'word' : 'words'}
+              </span>
+            </div>
           </div>
         )}
       </div>
