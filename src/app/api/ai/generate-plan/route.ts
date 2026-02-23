@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+
+export const maxDuration = 60; // seconds — needed for AI response time on Vercel
 import { getAnthropicClient, AI_MODEL } from '@/lib/ai/client';
 import {
   buildOnboardingPrompt,

@@ -1,3 +1,5 @@
+export const maxDuration = 60; // seconds — needed for AI response time on Vercel
+
 /**
  * GET /api/ai/motivation
  * Returns the user's daily motivation message.

@@ -1,3 +1,5 @@
+export const maxDuration = 60; // seconds — needed for AI response time on Vercel
+
 /**
  * POST /api/reports/generate
  * Generates (or re-generates) a weekly or monthly habit report.
