@@ -31,7 +31,7 @@ export const useOnboardingStore = create<OnboardingStore>((set) => ({
   currentStep: 1,
   totalSteps: TOTAL_STEPS,
   data: {
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    timezone: '', // detected on client mount to avoid server/client hydration mismatch
     wakeTime: '07:00',
     sleepTime: '23:00',
     motivationStyle: 'balanced',
