@@ -64,7 +64,7 @@ export interface RescheduleInput {
   workDays:      number[];              // 0=Mon … 6=Sun
   commuteStart?: string;
   commuteEnd?:   string;
-  habits:        Array<{ title: string; description: string | null; icon: string }>;
+  habits:        Array<{ title: string; description: string | null; icon: string | null }>;
   existingBlocks: Array<{ title: string; startTime: string; endTime: string }>;
   displacedCount: number;
 }
@@ -91,7 +91,7 @@ export function buildReschedulePrompt(input: RescheduleInput): string {
     : '  (none)';
 
   const habitsStr = input.habits.length
-    ? input.habits.map(h => `  ${h.icon} ${h.title}${h.description ? ` — ${h.description}` : ''}`).join('\n')
+    ? input.habits.map(h => `  ${h.icon ?? '•'} ${h.title}${h.description ? ` — ${h.description}` : ''}`).join('\n')
     : '  (none listed)';
 
   const targetCount = Math.min(input.displacedCount + 2, 8);
