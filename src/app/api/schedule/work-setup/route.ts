@@ -1,10 +1,18 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { db } from '@/lib/db';
-import { scheduleBlocks } from '@/lib/db/schema';
+import { scheduleBlocks, habits, usersProfiles } from '@/lib/db/schema';
 import { createScheduleBlock } from '@/lib/db/queries/schedule';
 import { eq, and, gte, lte, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { serverError, unauthorizedError } from '@/lib/utils/errors';
+import { getAnthropicClient, AI_MODEL_FAST } from '@/lib/ai/client';
+import {
+  buildReschedulePrompt,
+  COACHING_SYSTEM_PROMPT,
+  type GeneratedScheduleBlock,
+} from '@/lib/ai/prompts/onboarding';
+
+export const maxDuration = 60; // seconds — needed for the AI reschedule call on Vercel
 
 // ── Validation ─────────────────────────────────────────────────────────────────
 const workSetupSchema = z.object({
@@ -113,7 +121,154 @@ export async function POST(req: Request) {
       }
     }
 
-    return Response.json({ success: true, created }, { status: 201 });
+    // ── Remove AI-generated recurring blocks that conflict with work hours ─
+    // Work and commute time must be treated as hard blockers. Any habit or
+    // personal block the AI placed inside these windows gets removed so the
+    // user isn't shown impossible tasks during working hours.
+    const protectedWindows: Array<{ start: string; end: string }> = [
+      { start: startTime, end: endTime },
+      ...(commuteStart && commuteEnd ? [{ start: commuteStart, end: commuteEnd }] : []),
+    ];
+
+    // Fetch all AI-generated recurring blocks for this user (daily templates
+    // created at onboarding — these are the ones that can conflict)
+    const aiRecurringBlocks = await db
+      .select({
+        id:        scheduleBlocks.id,
+        startTime: scheduleBlocks.startTime,
+        endTime:   scheduleBlocks.endTime,
+      })
+      .from(scheduleBlocks)
+      .where(
+        and(
+          eq(scheduleBlocks.userId,      uid),
+          eq(scheduleBlocks.aiGenerated, true),
+          eq(scheduleBlocks.isRecurring, true),
+        )
+      );
+
+    // Standard interval-overlap test: A overlaps B when A.start < B.end AND A.end > B.start
+    const conflictingIds = aiRecurringBlocks
+      .filter(block =>
+        protectedWindows.some(w => block.startTime < w.end && block.endTime > w.start)
+      )
+      .map(block => block.id);
+
+    let removed = 0;
+    if (conflictingIds.length > 0) {
+      await db
+        .delete(scheduleBlocks)
+        .where(
+          and(
+            eq(scheduleBlocks.userId, uid),
+            inArray(scheduleBlocks.id, conflictingIds),
+          )
+        );
+      removed = conflictingIds.length;
+    }
+
+    // ── AI Reschedule: rebuild free-time blocks for displaced habits ──────────
+    // If any AI blocks were removed, ask Claude to redistribute those habits
+    // into the windows that remain free outside work/commute hours.
+    // This is best-effort — a failure here does NOT fail the whole request.
+    let rescheduled = 0;
+
+    if (removed > 0) {
+      try {
+        // Fetch the user's wake/sleep times
+        const profileRows = await db
+          .select({ wakeTime: usersProfiles.wakeTime, sleepTime: usersProfiles.sleepTime })
+          .from(usersProfiles)
+          .where(eq(usersProfiles.id, uid))
+          .limit(1);
+
+        const profile = profileRows[0];
+
+        if (profile) {
+          // Fetch the user's active habits so the AI knows what to schedule
+          const userHabits = await db
+            .select({ title: habits.title, description: habits.description, icon: habits.icon })
+            .from(habits)
+            .where(and(eq(habits.userId, uid), eq(habits.isActive, true)));
+
+          // Fetch surviving AI recurring blocks so the AI doesn't overlap them
+          const remainingBlocks = await db
+            .select({
+              title:     scheduleBlocks.title,
+              startTime: scheduleBlocks.startTime,
+              endTime:   scheduleBlocks.endTime,
+            })
+            .from(scheduleBlocks)
+            .where(
+              and(
+                eq(scheduleBlocks.userId,      uid),
+                eq(scheduleBlocks.aiGenerated, true),
+                eq(scheduleBlocks.isRecurring, true),
+              )
+            );
+
+          const prompt = buildReschedulePrompt({
+            wakeTime:       profile.wakeTime  ?? '07:00',
+            sleepTime:      profile.sleepTime ?? '23:00',
+            workType:       type,
+            workStart:      startTime,
+            workEnd:        endTime,
+            workDays:       days,
+            commuteStart,
+            commuteEnd,
+            habits:         userHabits,
+            existingBlocks: remainingBlocks,
+            displacedCount: removed,
+          });
+
+          const message = await getAnthropicClient().messages.create({
+            model:      AI_MODEL_FAST,
+            max_tokens: 1024,
+            system:     COACHING_SYSTEM_PROMPT,
+            messages:   [{ role: 'user', content: prompt }],
+          });
+
+          const text = message.content[0].type === 'text' ? message.content[0].text : '';
+
+          let aiResult: { scheduleBlocks: GeneratedScheduleBlock[] };
+          try {
+            aiResult = JSON.parse(text);
+          } catch {
+            const match = text.match(/\{[\s\S]*\}/);
+            aiResult = match ? JSON.parse(match[0]) : { scheduleBlocks: [] };
+          }
+
+          const rescheduleDate = toYMD(new Date());
+
+          for (const block of aiResult.scheduleBlocks ?? []) {
+            // Safety guard: silently skip any block that still falls in a protected window
+            const isBlocked = protectedWindows.some(
+              w => block.startTime < w.end && block.endTime > w.start
+            );
+            if (isBlocked) continue;
+
+            await createScheduleBlock({
+              userId:          uid,
+              title:           block.title,
+              blockDate:       rescheduleDate,
+              startTime:       block.startTime,
+              endTime:         block.endTime,
+              category:        block.category,
+              description:     block.description ?? null,
+              isRecurring:     true,
+              recurringConfig: { type: 'daily' },
+              aiGenerated:     true,
+            });
+            rescheduled++;
+          }
+        }
+      } catch (aiErr) {
+        // AI rescheduling is non-critical — log but don't surface to the client
+        console.error('[work-setup] AI reschedule failed:', aiErr instanceof Error ? aiErr.message : aiErr);
+      }
+    }
+
+    return Response.json({ success: true, created, removed, rescheduled }, { status: 201 });
   } catch (err) {
     console.error('[POST /api/schedule/work-setup]', err instanceof Error ? err.message : err);
     return serverError();
