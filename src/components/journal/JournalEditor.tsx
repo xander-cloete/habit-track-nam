@@ -1,16 +1,30 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import EntryCalendar from './EntryCalendar';
 import type { JournalEntry } from '@/lib/db/schema';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const LINE_HEIGHT = 34; // px — must match CSS background-size
 
-// Warm cream paper matching the app theme (#FDF8F0)
-const PAPER_BG     = 'var(--color-paper)';
-const RULE_COLOR   = 'rgba(150,175,215,0.38)';   // light blue ruling
-const MARGIN_COLOR = 'rgba(200,60,50,0.22)';      // pale red margin line
+// Matches --color-paper-dark (#F5EDD8) — same tone the calendar card uses
+const PAPER_BG     = 'var(--color-paper-dark)';
+const RULE_COLOR   = 'rgba(150,175,215,0.42)';   // light blue ruling
+const MARGIN_COLOR = 'rgba(200,60,50,0.28)';      // pale red margin line (lined style only)
+
+// Paper texture asset (placed in /public)
+const PAPER_TEXTURE = "url('/paper_texture.jpg')";
+
+// Shared style applied to every surface that should look like physical paper.
+// multiply blend mode layers the near-white grain over the cream base colour,
+// darkening only where fibre texture exists — perfectly subtle.
+const PAPER_STYLE: React.CSSProperties = {
+  backgroundColor:   PAPER_BG,
+  backgroundImage:   PAPER_TEXTURE,
+  backgroundSize:    '520px',
+  backgroundRepeat:  'repeat',
+  backgroundBlendMode: 'multiply',
+};
 
 // ── Page styles ────────────────────────────────────────────────────────────────
 type PageStyle = 'lined' | 'grid' | 'plain';
@@ -22,25 +36,42 @@ const PAGE_STYLE_OPTIONS: { id: PageStyle; icon: string; label: string }[] = [
   { id: 'plain', icon: '□', label: 'Plain' },
 ];
 
-function getPageBackground(style: PageStyle): string {
+// Returns the full CSS background properties for the writing textarea.
+// Each style stacks ruling gradient(s) ON TOP of the paper texture so the
+// grain shows through between lines — exactly like writing on real paper.
+function getPageBgStyle(style: PageStyle): React.CSSProperties {
   switch (style) {
     case 'lined':
-      return `linear-gradient(transparent ${LINE_HEIGHT - 1}px, ${RULE_COLOR} ${LINE_HEIGHT - 1}px)`;
+      return {
+        backgroundColor:   PAPER_BG,
+        backgroundImage:   `linear-gradient(transparent ${LINE_HEIGHT - 1}px, ${RULE_COLOR} ${LINE_HEIGHT - 1}px), ${PAPER_TEXTURE}`,
+        backgroundSize:    `100% ${LINE_HEIGHT}px, 520px`,
+        backgroundRepeat:  'repeat, repeat',
+        backgroundAttachment: 'local, local',
+        backgroundBlendMode: 'normal, multiply',
+      };
     case 'grid':
-      return [
-        `linear-gradient(${RULE_COLOR} 1px, transparent 1px)`,
-        `linear-gradient(90deg, ${RULE_COLOR} 1px, transparent 1px)`,
-      ].join(', ');
+      return {
+        backgroundColor:   PAPER_BG,
+        backgroundImage:   [
+          `linear-gradient(${RULE_COLOR} 1px, transparent 1px)`,
+          `linear-gradient(90deg, ${RULE_COLOR} 1px, transparent 1px)`,
+          PAPER_TEXTURE,
+        ].join(', '),
+        backgroundSize:    `${LINE_HEIGHT}px ${LINE_HEIGHT}px, ${LINE_HEIGHT}px ${LINE_HEIGHT}px, 520px`,
+        backgroundRepeat:  'repeat, repeat, repeat',
+        backgroundAttachment: 'local, local, local',
+        backgroundBlendMode: 'normal, normal, multiply',
+      };
     case 'plain':
-      return 'none';
-  }
-}
-
-function getPageBackgroundSize(style: PageStyle): string {
-  switch (style) {
-    case 'lined': return `100% ${LINE_HEIGHT}px`;
-    case 'grid':  return `${LINE_HEIGHT}px ${LINE_HEIGHT}px`;
-    case 'plain': return 'auto';
+      return {
+        backgroundColor:   PAPER_BG,
+        backgroundImage:   PAPER_TEXTURE,
+        backgroundSize:    '520px',
+        backgroundRepeat:  'repeat',
+        backgroundAttachment: 'local',
+        backgroundBlendMode: 'multiply',
+      };
   }
 }
 
@@ -245,7 +276,7 @@ export default function JournalEditor() {
   return (
     <div
       className="flex h-screen overflow-hidden"
-      style={{ backgroundColor: PAPER_BG }}
+      style={{ ...PAPER_STYLE }}
     >
       {/* ── Left: writing area ─────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -254,7 +285,7 @@ export default function JournalEditor() {
         <div
           className="flex-shrink-0 flex items-center justify-between px-6 py-3 gap-4"
           style={{
-            backgroundColor: PAPER_BG,
+            ...PAPER_STYLE,
             borderBottom: '1px solid rgba(150,175,215,0.35)',
           }}
         >
@@ -332,7 +363,7 @@ export default function JournalEditor() {
         {/* ── The journal page itself ──────────────────────────────────────── */}
         <div
           className="flex-1 overflow-y-auto"
-          style={{ backgroundColor: PAPER_BG }}
+          style={{ ...PAPER_STYLE }}
         >
           <div className="max-w-2xl mx-auto px-6 py-8">
 
@@ -353,33 +384,19 @@ export default function JournalEditor() {
             {!isLoading && (
               <div className="relative">
 
-                {/* Date stamp: top-right corner of writing area */}
-                <p
-                  className="absolute font-hand select-none pointer-events-none"
-                  style={{
-                    top: '4px',
-                    right: '8px',
-                    color: 'rgba(100,116,139,0.5)',
-                    fontSize: '13px',
-                    lineHeight: `${LINE_HEIGHT}px`,
-                    zIndex: 1,
-                  }}
-                  aria-hidden="true"
-                >
-                  {formatDateStamp(date)}
-                </p>
-
-                {/* Red margin line */}
-                <div
-                  className="absolute top-0 bottom-0"
-                  style={{
-                    left: '44px',
-                    width: '1px',
-                    backgroundColor: MARGIN_COLOR,
-                    pointerEvents: 'none',
-                  }}
-                  aria-hidden="true"
-                />
+                {/* Red margin line — lined style only */}
+                {pageStyle === 'lined' && (
+                  <div
+                    className="absolute top-0 bottom-0"
+                    style={{
+                      left: '44px',
+                      width: '1px',
+                      backgroundColor: MARGIN_COLOR,
+                      pointerEvents: 'none',
+                    }}
+                    aria-hidden="true"
+                  />
+                )}
 
                 {/* Placeholder prompt */}
                 {content === '' && !isFuture && (
@@ -387,7 +404,7 @@ export default function JournalEditor() {
                     className="absolute pointer-events-none font-hand"
                     style={{
                       top: '4px',
-                      left: '52px',
+                      left: pageStyle === 'lined' ? '52px' : '20px',
                       color: 'rgba(100,116,139,0.45)',
                       fontSize: '19px',
                       lineHeight: `${LINE_HEIGHT}px`,
@@ -423,10 +440,7 @@ export default function JournalEditor() {
                   autoFocus={isToday}
                   className="w-full outline-none resize-none"
                   style={{
-                    backgroundImage: getPageBackground(pageStyle),
-                    backgroundSize: getPageBackgroundSize(pageStyle),
-                    backgroundAttachment: 'local',
-                    backgroundColor: 'transparent',
+                    ...getPageBgStyle(pageStyle),
 
                     fontFamily: fontCssVar,
                     fontSize: '19px',
@@ -435,8 +449,8 @@ export default function JournalEditor() {
                     letterSpacing: '-0.01em',
                     color: inkColor,
 
-                    paddingLeft: '52px',
-                    paddingRight: '8px',
+                    paddingLeft: pageStyle === 'lined' ? '52px' : '20px',
+                    paddingRight: '20px',
                     paddingTop: '4px',
                     paddingBottom: `${LINE_HEIGHT * 6}px`,
                     minHeight: `${LINE_HEIGHT * 18}px`,
@@ -457,8 +471,8 @@ export default function JournalEditor() {
           <div
             className="flex-shrink-0 flex items-center justify-between px-6 py-3 gap-4 flex-wrap"
             style={{
+              ...PAPER_STYLE,
               borderTop: '1px solid rgba(150,175,215,0.35)',
-              backgroundColor: PAPER_BG,
             }}
           >
             {/* Left group: pen colour + page style */}
@@ -600,9 +614,9 @@ export default function JournalEditor() {
       <aside
         className="hidden xl:flex flex-col gap-4 p-5 flex-shrink-0"
         style={{
+          ...PAPER_STYLE,
           width: '220px',
           borderLeft: '1px solid rgba(150,175,215,0.35)',
-          backgroundColor: PAPER_BG,
         }}
       >
         <p className="font-hand text-base" style={{ color: 'var(--color-ink-faint)' }}>
