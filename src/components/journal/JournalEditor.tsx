@@ -7,26 +7,17 @@ import type { JournalEntry } from '@/lib/db/schema';
 // ── Constants ─────────────────────────────────────────────────────────────────
 const LINE_HEIGHT = 34; // px — must match CSS background-size
 
-// Near-white (#FAFAF8) so the paper reads as crisp white writing paper.
-// multiply blend mode with a near-white base leaves the texture's natural
-// grain colour almost untouched — no amber/cream tint.
+// Background colour for the chrome (top bar, bottom bar, sidebar, page bg).
+// Uses the app's paper token — clean, no texture.
+const CHROME_BG    = 'var(--color-paper)';
+
+// Near-white base for the writing textarea so grain shows crisply.
 const PAPER_BG     = '#FAFAF8';
 const RULE_COLOR   = 'rgba(150,175,215,0.42)';   // light blue ruling
 const MARGIN_COLOR = 'rgba(200,60,50,0.28)';      // pale red margin line (lined style only)
 
-// Paper texture asset (placed in /public)
-const PAPER_TEXTURE = "url('/paper_texture.jpg')";
-
-// Shared style applied to every surface that should look like physical paper.
-// multiply blend mode layers the near-white grain over the cream base colour,
-// darkening only where fibre texture exists — perfectly subtle.
-const PAPER_STYLE: React.CSSProperties = {
-  backgroundColor:   PAPER_BG,
-  backgroundImage:   PAPER_TEXTURE,
-  backgroundSize:    '520px',
-  backgroundRepeat:  'repeat',
-  backgroundBlendMode: 'multiply',
-};
+// Paper texture asset (placed in /public) — applied ONLY to the writing textarea.
+const PAPER_TEXTURE = "url('/journal_texture_new.jpg')";
 
 // ── Page styles ────────────────────────────────────────────────────────────────
 type PageStyle = 'lined' | 'grid' | 'plain';
@@ -278,7 +269,7 @@ export default function JournalEditor() {
   return (
     <div
       className="flex h-screen overflow-hidden"
-      style={{ ...PAPER_STYLE }}
+      style={{ backgroundColor: CHROME_BG }}
     >
       {/* ── Left: writing area ─────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -287,7 +278,7 @@ export default function JournalEditor() {
         <div
           className="flex-shrink-0 flex items-center justify-between px-6 py-3 gap-4"
           style={{
-            ...PAPER_STYLE,
+            backgroundColor: CHROME_BG,
             borderBottom: '1px solid rgba(150,175,215,0.35)',
           }}
         >
@@ -365,7 +356,7 @@ export default function JournalEditor() {
         {/* ── The journal page itself ──────────────────────────────────────── */}
         <div
           className="flex-1 overflow-y-auto"
-          style={{ ...PAPER_STYLE }}
+          style={{ backgroundColor: CHROME_BG }}
         >
           <div className="max-w-2xl mx-auto px-6 py-8">
 
@@ -473,7 +464,7 @@ export default function JournalEditor() {
           <div
             className="flex-shrink-0 flex items-center justify-between px-6 py-3 gap-4 flex-wrap"
             style={{
-              ...PAPER_STYLE,
+              backgroundColor: CHROME_BG,
               borderTop: '1px solid rgba(150,175,215,0.35)',
             }}
           >
@@ -616,7 +607,7 @@ export default function JournalEditor() {
       <aside
         className="hidden xl:flex flex-col gap-4 p-5 flex-shrink-0"
         style={{
-          ...PAPER_STYLE,
+          backgroundColor: CHROME_BG,
           width: '220px',
           borderLeft: '1px solid rgba(150,175,215,0.35)',
         }}
