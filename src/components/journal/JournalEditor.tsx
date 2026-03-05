@@ -7,8 +7,10 @@ import type { JournalEntry } from '@/lib/db/schema';
 // ── Constants ─────────────────────────────────────────────────────────────────
 const LINE_HEIGHT = 34; // px — must match CSS background-size
 
-// Matches --color-paper-dark (#F5EDD8) — same tone the calendar card uses
-const PAPER_BG     = 'var(--color-paper-dark)';
+// Near-white (#FAFAF8) so the paper reads as crisp white writing paper.
+// multiply blend mode with a near-white base leaves the texture's natural
+// grain colour almost untouched — no amber/cream tint.
+const PAPER_BG     = '#FAFAF8';
 const RULE_COLOR   = 'rgba(150,175,215,0.42)';   // light blue ruling
 const MARGIN_COLOR = 'rgba(200,60,50,0.28)';      // pale red margin line (lined style only)
 
