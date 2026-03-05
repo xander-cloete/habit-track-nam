@@ -130,9 +130,14 @@ export default function JournalEditor() {
   const [pageStyle, setPageStyle] = useState<PageStyle>(DEFAULT_PAGE_STYLE);
   const [fontId,    setFontId]    = useState<FontId>(DEFAULT_FONT);
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const saveTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSaved   = useRef<{ content: string; mood: number | null }>({ content: '', mood: null });
+  const textareaRef    = useRef<HTMLTextAreaElement>(null);
+  const saveTimer      = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSaved      = useRef<{ content: string; mood: number | null }>({ content: '', mood: null });
+  // Always-fresh refs so the unmount cleanup never reads stale closure values
+  const latestContent  = useRef(content);
+  const latestMood     = useRef(mood);
+  latestContent.current = content;
+  latestMood.current    = mood;
 
   // Load preferences from localStorage (client-only, avoids hydration mismatch)
   useEffect(() => {
@@ -214,19 +219,23 @@ export default function JournalEditor() {
     scheduleAutoSave(content, next);
   }
 
-  // Save on unmount / date change
+  // Save on unmount / date change.
+  // Uses latestContent/latestMood refs instead of closing over state directly,
+  // so the cleanup always flushes whatever the user last typed — not a stale snapshot.
   useEffect(() => {
     return () => {
       if (saveTimer.current) {
         clearTimeout(saveTimer.current);
-        void save(content, mood);
+        void save(latestContent.current, latestMood.current);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
 
+  const oldestAllowed = addDays(today, -30);
   const isToday  = date === today;
   const isFuture = date > today;
+  const isPast30 = date <= oldestAllowed;
   const words    = wordCount(content);
   const prompt   = WRITING_PROMPTS[promptIndex] ?? WRITING_PROMPTS[0]!;
 
@@ -253,8 +262,9 @@ export default function JournalEditor() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setDate((d) => addDays(d, -1))}
+              disabled={isPast30}
               className="font-hand text-xl px-2 py-1 rounded"
-              style={{ color: 'var(--color-ink-faint)' }}
+              style={{ color: isPast30 ? 'var(--color-paper-ruled)' : 'var(--color-ink-faint)' }}
               aria-label="Previous day"
             >
               ‹
@@ -313,6 +323,7 @@ export default function JournalEditor() {
           >
             <EntryCalendar
               selectedDate={date}
+              oldestDate={oldestAllowed}
               onSelect={(d) => { setDate(d); setShowCalendar(false); }}
             />
           </div>
@@ -599,6 +610,7 @@ export default function JournalEditor() {
         </p>
         <EntryCalendar
           selectedDate={date}
+          oldestDate={oldestAllowed}
           onSelect={setDate}
         />
 

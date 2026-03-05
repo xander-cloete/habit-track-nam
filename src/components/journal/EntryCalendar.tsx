@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 interface EntryCalendarProps {
   selectedDate: string; // YYYY-MM-DD
   onSelect: (date: string) => void;
+  oldestDate?: string;  // YYYY-MM-DD — days before this are disabled
 }
 
 function toYMD(d: Date): string {
@@ -23,7 +24,7 @@ function firstDayOfMonth(year: number, month: number): number {
 
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-export default function EntryCalendar({ selectedDate, onSelect }: EntryCalendarProps) {
+export default function EntryCalendar({ selectedDate, onSelect, oldestDate }: EntryCalendarProps) {
   const today = toYMD(new Date());
 
   // Anchor month to the selected date
@@ -53,7 +54,16 @@ export default function EntryCalendar({ selectedDate, onSelect }: EntryCalendarP
       .catch(() => { /* ignore */ });
   }, [anchor]);
 
+  // Derive the oldest month boundary so prevMonth can be disabled
+  const oldestAnchor = oldestDate
+    ? (() => { const d = new Date(`${oldestDate}T00:00:00`); return { year: d.getFullYear(), month: d.getMonth() }; })()
+    : null;
+  const atOldestMonth = oldestAnchor
+    ? (anchor.year === oldestAnchor.year && anchor.month === oldestAnchor.month)
+    : false;
+
   function prevMonth() {
+    if (atOldestMonth) return;
     setAnchor(({ year, month }) => month === 0 ? { year: year - 1, month: 11 } : { year, month: month - 1 });
   }
   function nextMonth() {
@@ -80,8 +90,9 @@ export default function EntryCalendar({ selectedDate, onSelect }: EntryCalendarP
       <div className="flex items-center justify-between mb-3">
         <button
           onClick={prevMonth}
+          disabled={atOldestMonth}
           className="font-hand text-base px-1.5 py-0.5 rounded"
-          style={{ color: 'var(--color-ink-faint)' }}
+          style={{ color: atOldestMonth ? 'var(--color-paper-ruled)' : 'var(--color-ink-faint)' }}
           aria-label="Previous month"
         >
           ‹
@@ -121,12 +132,14 @@ export default function EntryCalendar({ selectedDate, onSelect }: EntryCalendarP
           const isSelected = dateStr === selectedDate;
           const hasEntry   = writtenDates.has(dateStr);
           const isFuture   = dateStr > today;
+          const isTooOld   = oldestDate ? dateStr < oldestDate : false;
+          const isDisabled = isFuture || isTooOld;
 
           return (
             <button
               key={dateStr}
-              onClick={() => !isFuture && onSelect(dateStr)}
-              disabled={isFuture}
+              onClick={() => !isDisabled && onSelect(dateStr)}
+              disabled={isDisabled}
               className="relative flex flex-col items-center justify-center rounded"
               style={{
                 height: '28px',
@@ -135,8 +148,8 @@ export default function EntryCalendar({ selectedDate, onSelect }: EntryCalendarP
                   : isToday
                   ? 'var(--color-accent-light)'
                   : 'transparent',
-                cursor: isFuture ? 'not-allowed' : 'pointer',
-                opacity: isFuture ? 0.3 : 1,
+                cursor: isDisabled ? 'not-allowed' : 'pointer',
+                opacity: isDisabled ? 0.3 : 1,
               }}
               aria-label={dateStr}
             >
