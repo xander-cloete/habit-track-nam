@@ -130,8 +130,9 @@ export async function POST(req: Request) {
       ...(commuteStart && commuteEnd ? [{ start: commuteStart, end: commuteEnd }] : []),
     ];
 
-    // Fetch all AI-generated recurring blocks for this user (daily templates
-    // created at onboarding — these are the ones that can conflict)
+    // Fetch all AI-generated recurring blocks for this user that are today
+    // or in the future.  The date guard ensures we never delete historical
+    // blocks that the user has already completed — past data is immutable.
     const aiRecurringBlocks = await db
       .select({
         id:        scheduleBlocks.id,
@@ -144,6 +145,7 @@ export async function POST(req: Request) {
           eq(scheduleBlocks.userId,      uid),
           eq(scheduleBlocks.aiGenerated, true),
           eq(scheduleBlocks.isRecurring, true),
+          gte(scheduleBlocks.blockDate,  today),   // ← protect past completions
         )
       );
 
@@ -238,28 +240,42 @@ export async function POST(req: Request) {
             aiResult = match ? JSON.parse(match[0]) : { scheduleBlocks: [] };
           }
 
-          const rescheduleDate = toYMD(new Date());
+          // Build one row per block per day for the same 28-day window used
+          // by work/commute blocks.  A single batch INSERT is far more
+          // efficient than 28 × N individual round-trips.
+          const rescheduleRows: {
+            userId: string; title: string; blockDate: string;
+            startTime: string; endTime: string; category: string;
+            description: string | null; isRecurring: boolean;
+            recurringConfig: Record<string, unknown>; aiGenerated: boolean;
+          }[] = [];
 
           for (const block of aiResult.scheduleBlocks ?? []) {
-            // Safety guard: silently skip any block that still falls in a protected window
+            // Safety guard: skip any block that still overlaps a protected window
             const isBlocked = protectedWindows.some(
               w => block.startTime < w.end && block.endTime > w.start
             );
             if (isBlocked) continue;
 
-            await createScheduleBlock({
-              userId:          uid,
-              title:           block.title,
-              blockDate:       rescheduleDate,
-              startTime:       block.startTime,
-              endTime:         block.endTime,
-              category:        block.category,
-              description:     block.description ?? null,
-              isRecurring:     true,
-              recurringConfig: { type: 'daily' },
-              aiGenerated:     true,
-            });
-            rescheduled++;
+            for (let i = 0; i < 28; i++) {
+              rescheduleRows.push({
+                userId:          uid,
+                title:           block.title,
+                blockDate:       addDays(today, i),
+                startTime:       block.startTime,
+                endTime:         block.endTime,
+                category:        block.category,
+                description:     block.description ?? null,
+                isRecurring:     true,
+                recurringConfig: { type: 'daily' },
+                aiGenerated:     true,
+              });
+            }
+          }
+
+          if (rescheduleRows.length > 0) {
+            await db.insert(scheduleBlocks).values(rescheduleRows);
+            rescheduled = rescheduleRows.length;
           }
         }
       } catch (aiErr) {

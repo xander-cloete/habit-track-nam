@@ -168,22 +168,35 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ── Create schedule blocks (recurring templates for today) ─────────────
+    // ── Create schedule blocks for the next 28 days ───────────────────────
+    // Each AI-generated block is expanded into 28 individual date rows so
+    // the schedule is populated for today AND the coming weeks.  The query
+    // layer (getScheduleBlocks) fetches by blockDate, so without this loop
+    // habits would only appear on the single day the plan was generated.
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
-    for (const block of plan.scheduleBlocks) {
-      await db.insert(scheduleBlocks).values({
-        userId: user.id,
-        title: block.title,
-        startTime: block.startTime,
-        endTime: block.endTime,
-        category: block.category,
-        description: block.description ?? null,
-        blockDate: today,
-        isRecurring: true,
-        recurringConfig: { type: 'daily' },
-        aiGenerated: true,
-      });
+    function addDaysToDate(dateStr: string, n: number): string {
+      const d = new Date(`${dateStr}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + n);
+      return d.toISOString().slice(0, 10);
+    }
+
+    if (plan.scheduleBlocks.length > 0) {
+      const blockRows = plan.scheduleBlocks.flatMap((block) =>
+        Array.from({ length: 28 }, (_, i) => ({
+          userId:          user.id,
+          title:           block.title,
+          startTime:       block.startTime,
+          endTime:         block.endTime,
+          category:        block.category,
+          description:     block.description ?? null,
+          blockDate:       addDaysToDate(today, i),
+          isRecurring:     true,
+          recurringConfig: { type: 'daily' } as Record<string, unknown>,
+          aiGenerated:     true,
+        }))
+      );
+      await db.insert(scheduleBlocks).values(blockRows);
     }
 
     // ── Create goals + milestones ──────────────────────────────────────────
